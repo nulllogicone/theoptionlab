@@ -1,6 +1,6 @@
-# OptionData in the cloud
+# OptionLab in the cloud
 
 ## Azure and dotnet
 
-Rewrite some code and host the runtime anywhere but 'not on my machine'
+Goal: Host and run the code anywhere but 'not on my machine'
 
