@@ -38,11 +38,10 @@ namespace OptionFunctions
             // - example blob: https://optiondatafunctionstest.blob.core.windows.net/downloadcsv/smallset.csv?sv=2020-04-08&st=2021-07-21T19%3A52%3A05Z&se=2021-08-22T19%3A52%3A00Z&sr=b&sp=r&sig=0eUYhbU%2FbDbpqgVSQIs3qgIXHnhuGp9jeTmvvGL70h0%3D
 
             var BlobSasUrl = "https://optiondatafunctionstest.blob.core.windows.net/downloadcsv/smallset.csv?sv=2020-04-08&st=2021-07-21T19%3A52%3A05Z&se=2021-08-22T19%3A52%3A00Z&sr=b&sp=r&sig=0eUYhbU%2FbDbpqgVSQIs3qgIXHnhuGp9jeTmvvGL70h0%3D";
-            //var blob = new CloudBlobClient(BlobSasUrl);
-            var bb = new CloudBlockBlob(new Uri(BlobSasUrl));
-            var cool = JsonConvert.SerializeObject( bb.Properties);
-            var cont = await bb.DownloadTextAsync();
-            var lines = cont.Split(Environment.NewLine);
+            var cloudBlockBlob = new CloudBlockBlob(new Uri(BlobSasUrl));
+
+            var content = await cloudBlockBlob.DownloadTextAsync();
+            var lines = content.Split(Environment.NewLine);
             foreach(var l in lines)
             {
                 var cols = l.Split(',');
@@ -54,7 +53,7 @@ namespace OptionFunctions
             // - column schema
 
             // output
-            string responseMessage = $"CsvToTable name:{name} on env:{Environment.MachineName}. Props: {cool}";
+            string responseMessage = $"CsvToTable name:{name} on env:{Environment.MachineName}. Lines:{lines.Length}";
             return new OkObjectResult(responseMessage);
         }
     }
