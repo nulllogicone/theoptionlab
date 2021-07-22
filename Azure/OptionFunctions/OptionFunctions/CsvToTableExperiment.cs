@@ -12,6 +12,7 @@ using CsvHelper;
 using CsvHelper.Configuration;
 using System.Globalization;
 using System.Linq;
+using Microsoft.Azure.Cosmos.Table;
 
 namespace OptionFunctions
 {
@@ -39,30 +40,46 @@ namespace OptionFunctions
 
             // 1. read csv blob
             // ---------------------
-            // - example blob: https://optiondatafunctionstest.blob.core.windows.net/downloadcsv/smallset.csv?sv=2020-04-08&st=2021-07-21T19%3A52%3A05Z&se=2021-08-22T19%3A52%3A00Z&sr=b&sp=r&sig=0eUYhbU%2FbDbpqgVSQIs3qgIXHnhuGp9jeTmvvGL70h0%3D
 
-            var BlobSasUrl = "https://optiondatafunctionstest.blob.core.windows.net/downloadcsv/smallset.csv?sv=2020-04-08&st=2021-07-21T19%3A52%3A05Z&se=2021-08-22T19%3A52%3A00Z&sr=b&sp=r&sig=0eUYhbU%2FbDbpqgVSQIs3qgIXHnhuGp9jeTmvvGL70h0%3D";
-            var cloudBlockBlob = new CloudBlockBlob(new Uri(BlobSasUrl));
+            var ContainerSasUrl = "https://optiondatafunctionstest.blob.core.windows.net/downloadcsv?sv=2020-04-08&st=2021-07-22T19%3A50%3A22Z&se=2021-08-23T19%3A50%3A00Z&sr=c&sp=rl&sig=zQ9PpvM4%2FmPihZvsbIvaJtAagJA%2BmC8EwLAxocd%2FT7E%3D";
+            var container = new CloudBlobContainer(new Uri(ContainerSasUrl));
+            var blob = container.GetBlockBlobReference(name);
 
             using var ms = new MemoryStream();
-            await cloudBlockBlob.DownloadToStreamAsync(ms);
+            await blob.DownloadToStreamAsync(ms);
             
             var config = new CsvConfiguration(CultureInfo.InvariantCulture)
             {
                 HasHeaderRecord = true,
+                HeaderValidated = null,
+                MissingFieldFound = null
+
             };
             ms.Seek(0, SeekOrigin.Begin);
             using var csv = new CsvReader(new StreamReader(ms),config);
             var records =  csv.GetRecords<OptionDataRecord>();
-            var cnt = records.Count();
 
             // 2. bulk insert to Table Storage
             // -----------------------------
             // - partitionkey/rowkey???
             // - column schema
 
+            // Table Storage
+            var TableStorageSasUrl = "https://optiondatafunctionstest.table.core.windows.net/optiondata?st=2021-07-22T19%3A57%3A01Z&se=2021-08-23T19%3A57%3A00Z&sp=raud&sv=2018-03-28&tn=optiondata&sig=5Qqpbjh5xjTTdpx54xqeseu6iXv%2FQjLBZCK4NkjiU8A%3D";
+            var table = new CloudTable(new Uri(TableStorageSasUrl));
+
+            foreach (var record in records)
+            {
+                record.PartitionKey = $"{record.underlying_symbol}-{record.option_type}";
+                record.RowKey = record.quote_date;
+                var insertCmd = TableOperation.InsertOrMerge(record);
+                await table.ExecuteAsync(insertCmd);
+            }
+
+
+
             // output
-            string responseMessage = $"CsvToTable name:{name} on env:{Environment.MachineName}. Lines:{cnt}";
+            string responseMessage = $"CsvToTable name:{name} on env:{Environment.MachineName}. Lines:";
             return new OkObjectResult(responseMessage);
         }
     }

@@ -1,5 +1,8 @@
-public class OptionDataRecord
-{    public string underlying_symbol { get; set; }
+using Microsoft.Azure.Cosmos.Table;
+
+public class OptionDataRecord : TableEntity
+{
+    public string underlying_symbol { get; set; }
     public string quote_date { get; set; }
     public string root { get; set; }
     public string expiration { get; set; }
