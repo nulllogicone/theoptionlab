@@ -8,6 +8,10 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Microsoft.WindowsAzure.Storage.Blob;
+using CsvHelper;
+using CsvHelper.Configuration;
+using System.Globalization;
+using System.Linq;
 
 namespace OptionFunctions
 {
@@ -40,12 +44,17 @@ namespace OptionFunctions
             var BlobSasUrl = "https://optiondatafunctionstest.blob.core.windows.net/downloadcsv/smallset.csv?sv=2020-04-08&st=2021-07-21T19%3A52%3A05Z&se=2021-08-22T19%3A52%3A00Z&sr=b&sp=r&sig=0eUYhbU%2FbDbpqgVSQIs3qgIXHnhuGp9jeTmvvGL70h0%3D";
             var cloudBlockBlob = new CloudBlockBlob(new Uri(BlobSasUrl));
 
-            var content = await cloudBlockBlob.DownloadTextAsync();
-            var lines = content.Split(Environment.NewLine);
-            foreach(var l in lines)
+            using var ms = new MemoryStream();
+            await cloudBlockBlob.DownloadToStreamAsync(ms);
+            
+            var config = new CsvConfiguration(CultureInfo.InvariantCulture)
             {
-                var cols = l.Split(',');
-            }
+                HasHeaderRecord = true,
+            };
+            ms.Seek(0, SeekOrigin.Begin);
+            using var csv = new CsvReader(new StreamReader(ms),config);
+            var records =  csv.GetRecords<OptionDataRecord>();
+            var cnt = records.Count();
 
             // 2. bulk insert to Table Storage
             // -----------------------------
@@ -53,7 +62,7 @@ namespace OptionFunctions
             // - column schema
 
             // output
-            string responseMessage = $"CsvToTable name:{name} on env:{Environment.MachineName}. Lines:{lines.Length}";
+            string responseMessage = $"CsvToTable name:{name} on env:{Environment.MachineName}. Lines:{cnt}";
             return new OkObjectResult(responseMessage);
         }
     }
