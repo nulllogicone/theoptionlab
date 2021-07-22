@@ -8,7 +8,7 @@ public class OptionDataRecord : TableEntity
     public string expiration { get; set; }
     public string strike { get; set; }
     public string option_type { get; set; }
-    public decimal open { get; set; }           // todo: what are the data types?
+    public double open { get; set; }           // todo: what are the data types?
     public string high { get; set; }
     public string low { get; set; }
     public string close { get; set; }
@@ -22,7 +22,7 @@ public class OptionDataRecord : TableEntity
     public string bid_size_eod { get; set; }
     public string bid_eod { get; set; }
     public string ask_size_eod { get; set; }
-    public string ask_eod { get; set; }
+    public double ask_eod { get; set; }
     public string underlying_bid_eod { get; set; }
     public string underlying_ask_eod { get; set; }
     public string vwap { get; set; }

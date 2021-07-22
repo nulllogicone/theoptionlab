@@ -30,13 +30,13 @@ namespace OptionFunctions
             [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequest req,
             ILogger log)
         {
-            log.LogInformation("C# HTTP trigger function processed a request.");
 
             // input
             string name = req.Query["name"];
             string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
             dynamic data = JsonConvert.DeserializeObject(requestBody);
             name = name ?? data?.name;
+            log.LogInformation($"{nameof(CsvToTableExperiment)} triggered with {nameof(name)}:{name}");
 
             // 1. read csv blob
             // ---------------------
@@ -47,22 +47,32 @@ namespace OptionFunctions
 
             using var ms = new MemoryStream();
             await blob.DownloadToStreamAsync(ms);
+            ms.Seek(0, SeekOrigin.Begin);
             
             var config = new CsvConfiguration(CultureInfo.InvariantCulture)
             {
                 HasHeaderRecord = true,
                 HeaderValidated = null,
                 MissingFieldFound = null
-
             };
-            ms.Seek(0, SeekOrigin.Begin);
             using var csv = new CsvReader(new StreamReader(ms),config);
-            var records =  csv.GetRecords<OptionDataRecord>();
+            var records =  csv.GetRecords<OptionDataRecord>().ToList();
 
             // 2. bulk insert to Table Storage
             // -----------------------------
             // - partitionkey/rowkey???
             // - column schema
+
+            // group by symbol
+            var ii = 0;
+            var groups = records.GroupBy(r => r.underlying_symbol);
+            foreach (var g in groups)
+            {
+                foreach (var r in g)
+                {
+                    log.LogInformation($"{ ii++}-{ r.underlying_symbol}");
+                }
+            }
 
             // Table Storage
             var TableStorageSasUrl = "https://optiondatafunctionstest.table.core.windows.net/optiondata?st=2021-07-22T19%3A57%3A01Z&se=2021-08-23T19%3A57%3A00Z&sp=raud&sv=2018-03-28&tn=optiondata&sig=5Qqpbjh5xjTTdpx54xqeseu6iXv%2FQjLBZCK4NkjiU8A%3D";
@@ -73,15 +83,16 @@ namespace OptionFunctions
             {
                 // TODO: Partition and Row Key definition
                 record.PartitionKey = $"underlying_symbol:{record.underlying_symbol}+option_type:{record.option_type}";
-                record.RowKey = $"quote_date:{record.quote_date}+lineNumber{lineNumber++}";
+                record.RowKey = $"quote_date:{record.quote_date}+lineNumber:{lineNumber++}";
                 var insertCmd = TableOperation.InsertOrMerge(record);
                 await table.ExecuteAsync(insertCmd);
+                log.LogDebug($"Upserted: PartitionKey:{record.PartitionKey}+RowKey:{record.RowKey}");
             }
 
 
 
             // output
-            string responseMessage = $"CsvToTable name:{name} on env:{Environment.MachineName}. Lines:";
+            string responseMessage = $"CsvToTable name:{name} on env:{Environment.MachineName}. Lines:{records.Count()}";
             return new OkObjectResult(responseMessage);
         }
     }
