@@ -8,7 +8,7 @@ public class OptionDataRecord : TableEntity
     public string expiration { get; set; }
     public string strike { get; set; }
     public string option_type { get; set; }
-    public string open { get; set; }
+    public decimal open { get; set; }           // todo: what are the data types?
     public string high { get; set; }
     public string low { get; set; }
     public string close { get; set; }

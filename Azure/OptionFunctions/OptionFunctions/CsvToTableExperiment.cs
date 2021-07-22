@@ -68,10 +68,12 @@ namespace OptionFunctions
             var TableStorageSasUrl = "https://optiondatafunctionstest.table.core.windows.net/optiondata?st=2021-07-22T19%3A57%3A01Z&se=2021-08-23T19%3A57%3A00Z&sp=raud&sv=2018-03-28&tn=optiondata&sig=5Qqpbjh5xjTTdpx54xqeseu6iXv%2FQjLBZCK4NkjiU8A%3D";
             var table = new CloudTable(new Uri(TableStorageSasUrl));
 
+            var lineNumber = 1;
             foreach (var record in records)
             {
-                record.PartitionKey = $"{record.underlying_symbol}-{record.option_type}";
-                record.RowKey = record.quote_date;
+                // TODO: Partition and Row Key definition
+                record.PartitionKey = $"underlying_symbol:{record.underlying_symbol}+option_type:{record.option_type}";
+                record.RowKey = $"quote_date:{record.quote_date}+lineNumber{lineNumber++}";
                 var insertCmd = TableOperation.InsertOrMerge(record);
                 await table.ExecuteAsync(insertCmd);
             }
