@@ -81,9 +81,13 @@ namespace OptionFunctions
             var lineNumber = 1;
             foreach (var record in records)
             {
-                // TODO: Partition and Row Key definition
-                record.PartitionKey = $"underlying_symbol:{record.underlying_symbol}+option_type:{record.option_type}";
-                record.RowKey = $"quote_date:{record.quote_date}+lineNumber:{lineNumber++}";
+// TODO: Partition and Row Key definition
+// us = underlying_symbol
+// ot = option_type
+// qd = quote_date
+// ln = lineNumber 
+                record.PartitionKey = $"us:{record.underlying_symbol}+ot:{record.option_type}";
+                record.RowKey = $"qd:{record.quote_date}+ln:{lineNumber++}";
                 var insertCmd = TableOperation.InsertOrMerge(record);
                 await table.ExecuteAsync(insertCmd);
                 log.LogDebug($"Upserted: PartitionKey:{record.PartitionKey}+RowKey:{record.RowKey}");
