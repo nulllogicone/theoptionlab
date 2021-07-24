@@ -31,7 +31,7 @@ namespace OptionFunctions
             ILogger log)
         {
 
-            // input
+            // input file name (from query or body)
             string name = req.Query["name"];
             string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
             dynamic data = JsonConvert.DeserializeObject(requestBody);
@@ -56,23 +56,13 @@ namespace OptionFunctions
                 MissingFieldFound = null
             };
             using var csv = new CsvReader(new StreamReader(ms),config);
-            var records =  csv.GetRecords<OptionDataRecord>().ToList();
+            var records = csv.GetRecords<OptionDataRecord>().ToList(); // do I really need it to reuse the list?
 
             // 2. bulk insert to Table Storage
             // -----------------------------
             // - partitionkey/rowkey???
             // - column schema
 
-            // group by symbol
-            var ii = 0;
-            var groups = records.GroupBy(r => r.underlying_symbol);
-            foreach (var g in groups)
-            {
-                foreach (var r in g)
-                {
-                    log.LogInformation($"{ ii++}-{ r.underlying_symbol}");
-                }
-            }
 
             // Table Storage
             var TableStorageSasUrl = "https://optiondatafunctionstest.table.core.windows.net/optiondata?st=2021-07-22T19%3A57%3A01Z&se=2021-08-23T19%3A57%3A00Z&sp=raud&sv=2018-03-28&tn=optiondata&sig=5Qqpbjh5xjTTdpx54xqeseu6iXv%2FQjLBZCK4NkjiU8A%3D";
@@ -81,18 +71,32 @@ namespace OptionFunctions
             var lineNumber = 1;
             foreach (var record in records)
             {
-// TODO: Partition and Row Key definition
-// us = underlying_symbol
-// ot = option_type
-// qd = quote_date
-// ln = lineNumber 
+                // TODO: Partition and Row Key definition
+                // us = underlying_symbol
+                // ot = option_type
+                // ex = expiration
+                // qd = quote_date
+                // ln = lineNumber 
                 record.PartitionKey = $"us:{record.underlying_symbol}+ot:{record.option_type}";
-                record.RowKey = $"qd:{record.quote_date}+ln:{lineNumber++}";
+                record.RowKey = $"qd:{record.quote_date}+ex:{record.expiration}+ln:{lineNumber++}";
+                record.Source = blob.Uri.ToString();
+
                 var insertCmd = TableOperation.InsertOrMerge(record);
                 await table.ExecuteAsync(insertCmd);
-                log.LogDebug($"Upserted: PartitionKey:{record.PartitionKey}+RowKey:{record.RowKey}");
+                log.LogDebug($"Upserted: {JsonConvert.SerializeObject(record)}");
             }
 
+            // Next iteration: Group by symbol and all other fields for PartitionKey to BULK INSERT
+            var ii = 0;
+            var groups = records.GroupBy(r => r.PartitionKey);
+            foreach (var g in groups)
+            {
+                log.LogInformation($"GROUP:{g.Key}");
+                foreach (var r in g)
+                {
+                    log.LogInformation($"{ ii++}-{ r.PartitionKey}-{r.RowKey}");
+                }
+            }
 
 
             // output
