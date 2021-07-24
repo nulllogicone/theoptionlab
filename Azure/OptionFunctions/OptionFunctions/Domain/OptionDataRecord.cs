@@ -2,6 +2,17 @@ using Microsoft.Azure.Cosmos.Table;
 
 public class OptionDataRecord : TableEntity
 {
+    // PartitionKey and RowKey must be set before using an instance
+    // PartitionKey = <underlying_symbol>+<option_type> (example)
+    // RowKey = <quote_date>
+
+    /// <summary>
+    /// Where does the record come from? 
+    /// </summary>
+    public string Source { get; set; }
+
+    // All properties below come from the data csv import
+    // TODO: Nicer mapping to dotnet names
     public string underlying_symbol { get; set; }
     public string quote_date { get; set; }
     public string root { get; set; }
