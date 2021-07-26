@@ -14,6 +14,7 @@ using System.Globalization;
 using System.Linq;
 using Microsoft.Azure.Cosmos.Table;
 using System.Collections.Generic;
+using OptionFunctions.Extensions;
 
 namespace OptionFunctions
 {
@@ -80,15 +81,21 @@ namespace OptionFunctions
             foreach (var group in groups)
             {
                 log.LogInformation($"GROUP:{group.Key}");
-                var batchOperationObj = new TableBatchOperation();
-                foreach (var record in group)
+
+                //Creating Batches of 100 items in order to insert them into AzureStorage  
+                var batches = group.Batch(100);
+                foreach (var batch in batches)
                 {
-                    record.PartitionKey = $"us:{record.underlying_symbol}+ot:{record.option_type}";
-                    record.RowKey = $"qd:{record.quote_date}+ex:{record.expiration}+ln:{lineNumber++}";
-                    record.Source = blob.Uri.ToString();
-                    batchOperationObj.InsertOrReplace(record);
+                    var batchOperationObj = new TableBatchOperation();
+                    foreach (var record in batch)
+                    {
+                        record.PartitionKey = $"us:{record.underlying_symbol}+ot:{record.option_type}";
+                        record.RowKey = $"qd:{record.quote_date}+ex:{record.expiration}+ln:{lineNumber++}";
+                        record.Source = blob.Uri.ToString();
+                        batchOperationObj.InsertOrReplace(record);
+                    }
+                    table.ExecuteBatch(batchOperationObj);
                 }
-                await table.ExecuteBatchAsync(batchOperationObj);
             }
 
             // output
