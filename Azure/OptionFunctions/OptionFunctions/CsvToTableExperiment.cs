@@ -49,6 +49,7 @@ namespace OptionFunctions
             using var ms = new MemoryStream();
             await blob.DownloadToStreamAsync(ms);
             ms.Seek(0, SeekOrigin.Begin);
+            log.LogInformation("Downloaded stream");
 
             var config = new CsvConfiguration(CultureInfo.InvariantCulture)
             {
@@ -58,6 +59,7 @@ namespace OptionFunctions
             };
             using var csv = new CsvReader(new StreamReader(ms), config);
             var records = csv.GetRecords<OptionDataRecord>().ToList(); // do I really need it to reuse the list?
+            log.LogInformation("Parsed csv");
 
             // 2. bulk insert to Table Storage
             // -----------------------------
