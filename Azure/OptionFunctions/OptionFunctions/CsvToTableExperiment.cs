@@ -78,25 +78,27 @@ namespace OptionFunctions
             // Next iteration for performance: Group by symbol and all other fields for PartitionKey to BULK INSERT
             var lineNumber = 0;
             var groups = records.GroupBy(record => $"us:{record.underlying_symbol}+ot:{record.option_type}");
-            foreach (var group in groups)
-            {
-                log.LogInformation($"GROUP:{group.Key}");
 
-                //Creating Batches of 100 items in order to insert them into AzureStorage  
-                var batches = group.Batch(100);
-                foreach (var batch in batches)
-                {
-                    var batchOperationObj = new TableBatchOperation();
-                    foreach (var record in batch)
-                    {
-                        record.PartitionKey = $"us:{record.underlying_symbol}+ot:{record.option_type}";
-                        record.RowKey = $"qd:{record.quote_date}+ex:{record.expiration}+ln:{lineNumber++}";
-                        record.Source = blob.Uri.ToString();
-                        batchOperationObj.InsertOrReplace(record);
-                    }
-                    table.ExecuteBatch(batchOperationObj);
-                }
-            }
+            // note: without Parallel I could insert 140k in 5min
+            Parallel.ForEach(groups, group =>
+           {
+               log.LogInformation($"GROUP:{group.Key}");
+
+               //Creating Batches of 100 items in order to insert them into AzureStorage  
+               var batches = group.Batch(100);
+               foreach (var batch in batches)
+               {
+                   var batchOperationObj = new TableBatchOperation();
+                   foreach (var record in batch)
+                   {
+                       record.PartitionKey = $"us:{record.underlying_symbol}+ot:{record.option_type}";
+                       record.RowKey = $"qd:{record.quote_date}+ex:{record.expiration}+ln:{lineNumber++}";
+                       record.Source = blob.Uri.ToString();
+                       batchOperationObj.InsertOrReplace(record);
+                   }
+                   table.ExecuteBatch(batchOperationObj);
+               }
+           });
 
             // output
             string responseMessage = $"CsvToTable name:{name} on env:{Environment.MachineName}. Lines:{records.Count()}";
