@@ -40,11 +40,14 @@ namespace OptionFunctions
             name = name ?? data?.name;
             log.LogInformation($"{nameof(CsvToTableExperiment)} triggered with {nameof(name)}:{name}");
 
+            // Environment variables
+            var CsvContainerSasUrl = Environment.GetEnvironmentVariable("CsvContainerSasUrl");
+            var TableStorageSasUrl = Environment.GetEnvironmentVariable("TableStorageSasUrl");
+
+
             // 1. read csv blob
             // ---------------------
-
-            var ContainerSasUrl = "https://optiondatafunctionstest.blob.core.windows.net/downloadcsv?sv=2020-04-08&st=2021-07-22T19%3A50%3A22Z&se=2021-08-23T19%3A50%3A00Z&sr=c&sp=rl&sig=zQ9PpvM4%2FmPihZvsbIvaJtAagJA%2BmC8EwLAxocd%2FT7E%3D";
-            var container = new CloudBlobContainer(new Uri(ContainerSasUrl));
+            var container = new CloudBlobContainer(new Uri(CsvContainerSasUrl));
             var blob = container.GetBlockBlobReference(name);
 
             using var ms = new MemoryStream();
@@ -69,35 +72,35 @@ namespace OptionFunctions
 
 
             // Table Storage
-            var TableStorageSasUrl = "https://optionfunctions.table.core.windows.net/optiondata?st=2021-07-30T19%3A35%3A32Z&se=2021-08-02T19%3A35%3A00Z&sp=rau&sv=2018-03-28&tn=optiondata&sig=CIIUcub32%2FBARGGZBAIpkWTjYPULqja2BccCGsurO5E%3D";
             var table = new CloudTable(new Uri(TableStorageSasUrl));
 
             // First iteration, sequentially, timeout with large data set
-            //await InsertSquentilly(log, blob, records, table);
+            // await InsertSquentilly(log, blob, records, table);
 
             // Next iteration for performance: Group by symbol and all other fields for PartitionKey to BULK INSERT
+            // note: without Parallel I could insert 140k in 5min
+            // note: with Parallel foreach symbol I could insert 
             var lineNumber = 0;
             var groups = records.GroupBy(record => $"us:{record.underlying_symbol}+ot:{record.option_type}");
 
-            // note: without Parallel I could insert 140k in 5min
             Parallel.ForEach(groups, group =>
            {
                log.LogInformation($"GROUP:{group.Key}");
 
                //Creating Batches of 100 items in order to insert them into AzureStorage  
                var batches = group.Batch(100);
-               foreach (var batch in batches)
-               {
-                   var batchOperationObj = new TableBatchOperation();
-                   foreach (var record in batch)
-                   {
-                       record.PartitionKey = $"us:{record.underlying_symbol}+ot:{record.option_type}";
-                       record.RowKey = $"qd:{record.quote_date}+ex:{record.expiration}+ln:{lineNumber++}";
-                       record.Source = blob.Uri.ToString();
-                       batchOperationObj.InsertOrReplace(record);
-                   }
-                   table.ExecuteBatch(batchOperationObj);
-               }
+               Parallel.ForEach(batches, batch =>
+             {
+                 var batchOperationObj = new TableBatchOperation();
+                 Parallel.ForEach(batch, record =>
+                 {
+                     record.PartitionKey = $"us:{record.underlying_symbol}+ot:{record.option_type}";
+                     record.RowKey = $"qd:{record.quote_date}+ex:{record.expiration}+ln:{lineNumber++}";
+                     record.Source = blob.Uri.ToString();
+                     batchOperationObj.InsertOrReplace(record);
+                 });
+                 table.ExecuteBatch(batchOperationObj);
+             });
            });
 
             // output

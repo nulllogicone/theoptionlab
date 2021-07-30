@@ -1,9 +1,14 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.31410.223
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31521.260
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OptionFunctions", "OptionFunctions\OptionFunctions.csproj", "{9EF15DE2-7E44-47EC-992D-547D6BBCC21A}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OptionFunctions", "OptionFunctions\OptionFunctions.csproj", "{9EF15DE2-7E44-47EC-992D-547D6BBCC21A}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{974238D6-2BFB-4F97-B8F1-5DF84E9F8071}"
+	ProjectSection(SolutionItems) = preProject
+		README.md = README.md
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
