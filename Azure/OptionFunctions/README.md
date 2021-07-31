@@ -9,6 +9,10 @@ Goal: Host and run the code anywhere but 'not on my machine'
 - CsvToTableStorage
 
 The source of data comes from a Dropbox folder with zip files, each has 1+ Million rows. They get trasformed to csv files in a Storage account.  
+https://nulllogicone@dev.azure.com/nulllogicone/optionlab/_git/optionlab  
+
+The repository here is a Fork on GitHub to add Azure Features  
+https://github.com/nulllogicone/theoptionlab.git  
 
 This Function reads Csv and Inserts records to Table Storage (as fast as possible)
 

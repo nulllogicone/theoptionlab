@@ -78,14 +78,15 @@ namespace OptionFunctions
             // await InsertSquentilly(log, blob, records, table);
 
             // Next iteration for performance: Group by symbol and all other fields for PartitionKey to BULK INSERT
-            // note: without Parallel I could insert 140k in 5min
-            // note: with Parallel foreach symbol I could insert 
+            // note: without Parallel I could insert 140 k records / 5min
+            // note: with Parallel foreach symbol I could insert 615 k records / 5 m
+            // note: with nested Parallel.ForEach (groups, batches, records) I could insert xxx k records / 5 m
+            // maybe Data Factory would be faster for this job 
             var lineNumber = 0;
             var groups = records.GroupBy(record => $"us:{record.underlying_symbol}+ot:{record.option_type}");
 
             Parallel.ForEach(groups, group =>
            {
-               log.LogInformation($"GROUP:{group.Key}");
 
                //Creating Batches of 100 items in order to insert them into AzureStorage  
                var batches = group.Batch(100);
@@ -99,7 +100,14 @@ namespace OptionFunctions
                      record.Source = blob.Uri.ToString();
                      batchOperationObj.InsertOrReplace(record);
                  });
-                 table.ExecuteBatch(batchOperationObj);
+                 try
+                 {
+                     table.ExecuteBatch(batchOperationObj);
+                 }
+                 catch (Exception ex)
+                 {
+                     log.LogError(ex, ex.Message);
+                 }
              });
            });
 
