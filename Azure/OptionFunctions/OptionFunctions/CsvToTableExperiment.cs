@@ -1,20 +1,20 @@
-using System;
-using System.IO;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Extensions.Http;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
-using Microsoft.WindowsAzure.Storage.Blob;
 using CsvHelper;
 using CsvHelper.Configuration;
-using System.Globalization;
-using System.Linq;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Cosmos.Table;
-using System.Collections.Generic;
+using Microsoft.Azure.WebJobs;
+using Microsoft.Azure.WebJobs.Extensions.Http;
+using Microsoft.Extensions.Logging;
+using Microsoft.WindowsAzure.Storage.Blob;
+using Newtonsoft.Json;
 using OptionFunctions.Extensions;
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace OptionFunctions
 {
@@ -43,6 +43,7 @@ namespace OptionFunctions
             // Environment variables
             var CsvContainerSasUrl = Environment.GetEnvironmentVariable("CsvContainerSasUrl");
             var TableStorageSasUrl = Environment.GetEnvironmentVariable("TableStorageSasUrl");
+            var QueueToInsertSasUrl = Environment.GetEnvironmentVariable("QueueToInsertSasUrl");
 
 
             // 1. read csv blob
@@ -62,7 +63,7 @@ namespace OptionFunctions
                 MissingFieldFound = null
             };
             using var csv = new CsvReader(new StreamReader(ms), config);
-            var records = csv.GetRecords<OptionDataRecord>().ToList(); // do I really need it to reuse the list?
+            var records = csv.GetRecords<OptionDataRecord>(); // do I really need it to reuse the list?
             log.LogInformation("Parsed csv");
 
             // 2. bulk insert to Table Storage
@@ -85,31 +86,30 @@ namespace OptionFunctions
             var lineNumber = 0;
             var groups = records.GroupBy(record => $"us:{record.underlying_symbol}+ot:{record.option_type}");
 
-            Parallel.ForEach(groups, group =>
-           {
+            foreach (var group in groups)
+            {
 
-               //Creating Batches of 100 items in order to insert them into AzureStorage  
-               var batches = group.Batch(100);
-               Parallel.ForEach(batches, batch =>
-             {
-                 var batchOperationObj = new TableBatchOperation();
-                 Parallel.ForEach(batch, record =>
-                 {
-                     record.PartitionKey = $"us:{record.underlying_symbol}+ot:{record.option_type}";
-                     record.RowKey = $"qd:{record.quote_date}+ex:{record.expiration}+ln:{lineNumber++}";
-                     record.Source = blob.Uri.ToString();
-                     batchOperationObj.InsertOrReplace(record);
-                 });
-                 try
-                 {
-                     table.ExecuteBatch(batchOperationObj);
-                 }
-                 catch (Exception ex)
-                 {
-                     log.LogError(ex, ex.Message);
-                 }
-             });
-           });
+                //Creating Batches of 100 items in order to insert them into AzureStorage  
+                var insertTasks = new List<Task>();
+                var batches = group.Batch(100);
+                foreach (var batch in batches)
+                {
+                    var batchOperationObj = new TableBatchOperation();
+                    foreach (var record in batch)
+                    {
+                        record.PartitionKey = $"us:{record.underlying_symbol}+ot:{record.option_type}";
+                        record.RowKey = $"qd:{record.quote_date}+ex:{record.expiration}+ln:{lineNumber++}";
+                        record.Source = blob.Uri.ToString();
+                        batchOperationObj.InsertOrMerge(record);
+                    }
+
+                    
+                    insertTasks.Add(table.ExecuteBatchAsync(batchOperationObj));
+                    
+
+                }
+                await Task.WhenAll(insertTasks);
+            }
 
             // output
             string responseMessage = $"CsvToTable name:{name} on env:{Environment.MachineName}. Lines:{records.Count()}";
